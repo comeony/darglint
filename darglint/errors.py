@@ -21,7 +21,7 @@ DAR101.
 
 """
 import ast  # noqa: F401
-from typing import (
+from typing import (  # noqa: F401
     Tuple,
     Union,
 )
@@ -122,7 +122,7 @@ class PythonSyntaxError(DarglintError):
         """
         self.general_message = 'Python syntax error'
         self.terse_message = 's {}'.format(source)
-        self.line_numbers = (source.lineno or 0, source.lineno or 0)
+        self.line_numbers = (source.lineno, source.lineno)
 
 
 class GenericSyntaxError(DarglintError):
@@ -249,12 +249,83 @@ class EmptyTypeError(DarglintError):
         )
 
 
+class SummaryError(DarglintError):
+    """Describes when a docstring has a return not in definition."""
+
+    error_code = 'DAR006'
+    description = 'The docstring has no summary'
+
+    def __init__(self, function, line_numbers=None):
+        # type: (Union[ast.FunctionDef, ast.AsyncFunctionDef], Tuple[int, int]) -> None
+        """Instantiate the error's message.
+
+        Args:
+            function: An ast node for the function.
+            line_numbers: The line numbers where this error occurs.
+
+        """
+        self.general_message = 'Excess "summary" in Docstring'
+        self.terse_message = 'No Summary'
+
+        super(SummaryError, self).__init__(
+            function,
+            line_numbers=line_numbers,
+        )
+
+class BlankError(DarglintError):
+    """Describes when a docstring contains a parameter not in function."""
+
+    error_code = 'DAR600'
+    description = 'The docstring args content has not blank.'
+
+    def __init__(self, function, line_numbers=None):
+        # type: (Union[ast.FunctionDef, ast.AsyncFunctionDef], str, Tuple[int, int]) -> None
+        """Instantiate the error's message.
+
+        Args:
+            function: An ast node for the function.
+            name: The name of the argument that is excess.
+            line_numbers: The line numbers where this error occurs.
+
+        """
+        self.general_message = 'no blank'
+        self.terse_message = 'miss one blank line before "-" in Args'
+
+        super(BlankError, self).__init__(
+            function,
+            line_numbers=line_numbers,
+        )
+
+class SpaceError(DarglintError):
+    """Describes when a docstring contains a parameter not in function."""
+
+    error_code = 'DAR601'
+    description = 'The docstring args content has no indent.'
+
+    def __init__(self, function, line_numbers=None):
+        # type: (Union[ast.FunctionDef, ast.AsyncFunctionDef], str, Tuple[int, int]) -> None
+        """Instantiate the error's message.
+
+        Args:
+            function: An ast node for the function.
+            name: The name of the argument that is excess.
+            line_numbers: The line numbers where this error occurs.
+
+        """
+        self.general_message = 'no indent'
+        self.terse_message = 'The unordered list should be indented by two space'
+        super(SpaceError, self).__init__(
+            function,
+            line_numbers=line_numbers,
+        )
+
+
+
 class MissingParameterError(DarglintError):
     """Describes when a docstring is missing a parameter in the definition."""
 
     error_code = 'DAR101'
     description = 'The docstring is missing a parameter in the definition.'
-
     def __init__(self, function, name, line_numbers=None):
         # type: (Union[ast.FunctionDef, ast.AsyncFunctionDef], str, Tuple[int, int]) -> None
         """Instantiate the error's message.

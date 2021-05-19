@@ -112,7 +112,9 @@ class Docstring(BaseDocstring):
         if isinstance(root, CykNode):
             self.root = root
         else:
-            self.root = parse(condense(lex(root)))
+            root,root_format = parse(condense(lex(root)))
+            self.root = root
+            self.root_format = root_format
         self._lookup = self._discover()
 
     def _discover(self):
@@ -132,8 +134,8 @@ class Docstring(BaseDocstring):
                     if issubclass(annotation, Identifier):
                         lookup[annotation.key].append(node)
             lookup[node.symbol].append(node)
+        root_format = self.root_format
         return lookup
-
     def get_section(self, section):
         # type: (Sections) -> Optional[str]
         nodes = []  # type: Optional[List[CykNode]]
@@ -229,9 +231,7 @@ class Docstring(BaseDocstring):
 
         item_types = dict()  # type: Dict[str, Optional[str]]
         for item in self._lookup[ArgumentTypeIdentifier.key]:
-            item_types[
-                ArgumentIdentifier.extract(item)
-            ] = ArgumentTypeIdentifier.extract(item)
+            item_types[ArgumentIdentifier.extract(item)] = ArgumentTypeIdentifier.extract(item)
         for item in self._lookup[ArgumentIdentifier.key]:
             name = ArgumentIdentifier.extract(item)
             if name not in item_types:

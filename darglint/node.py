@@ -79,10 +79,10 @@ class CykNode(object):
             ret += '\n' + self.lchild.__str__(indent + 2)
         if self.rchild:
             ret += '\n' + self.rchild.__str__(indent + 2)
+        print(ret)
         return ret
 
     def in_order_traverse(self):
-        # type: () -> Iterator[CykNode]
         if self.lchild:
             yield from self.lchild.in_order_traverse()
         yield self

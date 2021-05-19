@@ -1,12 +1,6 @@
 import ast
 from typing import (
-    List,
     Set,
-    Union,
-)
-
-from .analysis_helpers import (
-    _has_decorator
 )
 
 
@@ -14,36 +8,53 @@ class FunctionAndMethodVisitor(ast.NodeVisitor):
 
     def __init__(self):
         # type: () -> None
-        self.callables = set()  # type: Set[Union[ast.FunctionDef, ast.AsyncFunctionDef]]
-        self._methods = set()  # type: Set[Union[ast.FunctionDef, ast.AsyncFunctionDef]]
-        self._properties = set()  # type: Set[Union[ast.FunctionDef, ast.AsyncFunctionDef]]
+        self.callables = set()  # type: Set[ast.FunctionDef, ast.AsyncFunctionDef]
+        self._methods = set()  # type: Set[ast.FunctionDef, ast.AsyncFunctionDef]
+        self._properties = set()  # type: Set[ast.FunctionDef, ast.AsyncFunctionDef]
 
     @property
     def functions(self):
-        # type: () -> List[Union[ast.FunctionDef, ast.AsyncFunctionDef]]
+        # type: () -> Union[ast.FunctionDef, ast.AsyncFunctionDef]
         return list(self.callables - self._methods - self._properties)
 
     @property
     def methods(self):
-        # type: () -> List[Union[ast.FunctionDef, ast.AsyncFunctionDef]]
+        # type: () -> Union[ast.FunctionDef, ast.AsyncFunctionDef]
         return list(self._methods)
 
     @property
     def properties(self):
-        # type: () -> List[Union[ast.FunctionDef, ast.AsyncFunctionDef]]
+        # type: () -> Union[ast.FunctionDef, ast.AsyncFunctionDef]
         return list(self._properties)
 
     def visit_ClassDef(self, node):
+        # type: (ast.ClassDef) -> ast.AST
+        if node.name.startswith('_'):
+            return
+        for item in node.body:
+            if isinstance(item, ast.FunctionDef) or isinstance(item, ast.AsyncFunctionDef):
+                if self._has_property_decorator(item):
+                    self._properties.add(item)
+                elif item.name=='__init__' and isinstance(node.body[0],ast.Expr):
+                    item.name=node.name
+                    item.body.insert(0,node.body[0])
+                    item.lineno=node.lineno
+                    self._methods.add(item)
+                elif isinstance(item,ast.Expr):
+                    self._methods.add(item)
+        return self.generic_visit(node)
+    
+    def ClassDef_init(self, node):
         # type: (ast.ClassDef) -> ast.AST
         for item in node.body:
             if isinstance(item, ast.FunctionDef) or isinstance(
                 item, ast.AsyncFunctionDef
             ):
-                if _has_decorator(item, "property"):
+                if self._has_property_decorator(item):
                     self._properties.add(item)
                 else:
                     self._methods.add(item)
-        return self.generic_visit(node)
+        return self.generic_visitclass(node)
 
     def visit_FunctionDef(self, node):
         # type: (ast.FunctionDef) -> ast.AST
@@ -54,3 +65,10 @@ class FunctionAndMethodVisitor(ast.NodeVisitor):
         # type: (ast.AsyncFunctionDef) -> ast.AST
         self.callables.add(node)
         return self.generic_visit(node)
+
+    def _has_property_decorator(self, node):
+        # type: (Union[ast.FunctionDef, ast.AsyncFunctionDef]) -> bool
+        for decorator in node.decorator_list:
+            if isinstance(decorator, ast.Name) and decorator.id == "property":
+                return True
+        return False

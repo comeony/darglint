@@ -4,11 +4,12 @@ import re
 import concurrent.futures
 from typing import (  # noqa: F401
     Any,
-    cast,
     List,
-    Optional,
     Set,
+    Optional,
 )
+
+from numpy.lib.arraysetops import setxor1d
 
 from .function_description import (  # noqa: F401
     FunctionDescription,
@@ -31,6 +32,9 @@ from .errors import (  # noqa: F401
     ParameterTypeMismatchError,
     ParameterTypeMissingError,
     ReturnTypeMismatchError,
+    SummaryError,
+    BlankError,
+    SpaceError,
 )
 from .error_report import (
     ErrorReport,
@@ -89,19 +93,18 @@ class IntegrityChecker(object):
         if self._skip_checks(function):
             return
 
-        function_docstring = cast(str, function.docstring)
         if self.config.style == DocstringStyle.GOOGLE:
-            docstring = Docstring.from_google(
-                function_docstring,
+            docstring= Docstring.from_google(
+                function.docstring,
             )
         elif self.config.style == DocstringStyle.SPHINX:
             docstring = Docstring.from_sphinx(
-                function_docstring,
+                function.docstring,
             )
             self._check_variables(docstring, function)
         elif self.config.style == DocstringStyle.NUMPY:
             docstring = Docstring.from_numpy(
-                function_docstring,
+                function.docstring,
             )
         else:
             raise Exception('Unsupported docstring format.')
@@ -111,14 +114,216 @@ class IntegrityChecker(object):
         if docstring.ignore_all:
             return
         self._check_parameters(docstring, function)
+        #self._check_summary(docstring, function)
+        self._check_MissingArgsBlank(docstring, function)
+        self._check_indent(docstring, function)
         self._check_parameter_types(docstring, function)
         self._check_parameter_types_missing(docstring, function)
         self._check_return(docstring, function)
         self._check_return_type(docstring, function)
-        self._check_yield(docstring, function)
+        #self._check_yield(docstring, function)
         self._check_raises(docstring, function)
-        self._check_style(docstring, function)
+        #self._check_style(docstring, function)
         self._sorted = False
+
+    
+    def _check_summary(self, docstring, function):
+        error_code = SummaryError.error_code
+        if self._ignore_error(docstring, SummaryError):
+            return
+        
+        line_numbers = docstring.get_line_numbers('arguments-section')
+        if '.' not in function.docstring.split('\n')[0]:
+            self.errors.append(
+                SummaryError(
+                    function.function,
+                    line_numbers=line_numbers,
+                )
+            )
+
+        
+    def _check_MissingArgsBlank(self, docstring, function):
+        rule = re.compile('^[a-zA-z]{1}.*$')
+        sections = function.docstring.split('\n')
+        annotitions_part = []
+        part = []
+        for i in range(0,len(sections)):
+            if i == 0:
+                part.append(sections[i])
+                continue
+            elif sections[i] == '' and sections[i-1].startswith('        '):
+                part.append(sections[i])
+                continue
+            elif sections[i] == '':
+                part.append(sections[i])
+                continue
+            elif sections[i][0] != ' ':
+                annotitions_part.append(part)
+                part = []
+                part.append(sections[i])
+                continue
+            elif i == len(sections)-1:
+                part.append(sections[i])
+            elif sections[i].startswith('    '):
+                part.append(sections[i])
+                continue
+            else:
+                part.append(sections[i])
+                continue
+            annotitions_part.append(part)
+            
+        error_code = BlankError.error_code
+        if self._ignore_error(docstring, BlankError):
+            return
+        
+        line_numbers = docstring.get_line_numbers('arguments-section')
+
+        parameter_part = []
+        parameter_num = 0
+        for line in annotitions_part:
+            if line[0] != 'Args:':
+                continue
+            for i in range(0,len(line)):
+                ident_num = 0
+                if rule.match(line[i]):
+                    continue
+                for j in range(0,len(line[i])):
+                    if line[i][j] == ' ':
+                        ident_num += 1
+                        continue
+                    else:
+                        break
+                if ident_num == 4 and parameter_num == 0:
+                    parameter_start = i
+                    parameter_num +=1
+                elif ident_num == 4 and parameter_num > 0:
+                    parameter_num +=1
+                    parameter_part.append(line[parameter_start:i])
+                    parameter_start = i
+                elif i == len(line)-1:
+                    parameter_part.append(line[parameter_start:i])
+                
+
+                    
+
+        for line in parameter_part:
+            list_num = 0
+            for i in range(0,len(line)):
+                ident_num = 0
+                for j in range(0,len(line[i])):
+                    if line[i][j] == ' ':
+                        ident_num += 1
+                        continue
+                    elif line[i][j] == '-':
+                        list_num += 1
+                        if line[i-1].isspace() or line[i-1] == '' or list_num >1 or ident_num<=4:
+                            continue
+                        else:
+                            self.errors.append(
+                            BlankError(
+                            function.function,
+                            line_numbers=line_numbers,
+                            )
+                        )
+                        break
+                    else:
+                        break
+    
+    def _check_indent(self, docstring, function):
+        rule = re.compile('^[a-zA-z]{1}.*$')
+        sections = function.docstring.split('\n')
+        annotitions_part = []
+        part = []
+        for i in range(0,len(sections)):
+            if i == 0:
+                part.append(sections[i])
+                continue
+            elif sections[i] == '' and sections[i-1].startswith('        '):
+                part.append(sections[i])
+                continue
+            elif sections[i] == '':
+                part.append(sections[i])
+                continue
+            elif sections[i][0] != ' ':
+                annotitions_part.append(part)
+                part = []
+                part.append(sections[i])
+                continue
+            elif i == len(sections)-1:
+                part.append(sections[i])
+            elif sections[i].startswith('    '):
+                part.append(sections[i])
+                continue
+            else:
+                part.append(sections[i])
+                continue
+            annotitions_part.append(part)
+            
+        error_code = SpaceError.error_code
+        if self._ignore_error(docstring, SpaceError):
+            return
+        
+        line_numbers = docstring.get_line_numbers('arguments-section')
+
+        parameter_part = []
+        parameter_num = 0
+        for line in annotitions_part:
+            if line[0] != 'Args:':
+                continue
+            for i in range(0,len(line)):
+                ident_num = 0
+                if rule.match(line[i]):
+                    continue
+                for j in range(0,len(line[i])):
+                    if line[i][j] == ' ':
+                        ident_num += 1
+                        continue
+                    else:
+                        break
+                if ident_num == 4 and parameter_num == 0:
+                    parameter_start = i
+                    parameter_num +=1
+                elif ident_num == 4 and parameter_num > 0:
+                    parameter_num +=1
+                    parameter_part.append(line[parameter_start:i])
+                    parameter_start = i
+                elif i == len(line)-1:
+                    parameter_part.append(line[parameter_start:i])
+
+        for line in parameter_part:
+            ident_standard = 0
+            for i in range(0,len(line)):
+                list_flag = 0
+                if line[i] == '':
+                    continue
+                ident_num = 0
+                for j in range(0,len(line[i])):
+                    if line[i][j] == ' ':
+                        ident_num += 1
+                        continue
+                    elif line[i][j] == '-':
+                        list_flag += 1
+                        ident_num += 1
+                        ident_standard = ident_num + 1
+                        break
+                    elif line[i-1]=='':
+                        ident_standard = 0
+                        break
+                    else:
+                        break
+
+                if ident_standard>0 and ident_num != ident_standard and list_flag !=1:
+                    self.errors.append(
+                            SpaceError(
+                            function.function,
+                            line_numbers=line_numbers,
+                            )
+                        )
+                
+                    
+
+
+
 
     def _skip_checks(self, function):
         # type: (FunctionDescription) -> bool
@@ -134,7 +339,7 @@ class IntegrityChecker(object):
         return bool(no_docsting or skip_by_regex or skip_property)
 
     def _check_parameter_types(self, docstring, function):
-        # type: (BaseDocstring, FunctionDescription) -> None
+        # type: (FunctionDescription) -> None
         error_code = ParameterTypeMismatchError.error_code
         if self._ignore_error(docstring, ParameterTypeMismatchError):
             return
@@ -178,7 +383,7 @@ class IntegrityChecker(object):
                 )
 
     def _check_parameter_types_missing(self, docstring, function):
-        # type: (BaseDocstring, FunctionDescription) -> None
+        # type: (FunctionDescription) -> None
         error_code = ParameterTypeMissingError.error_code
         if self._ignore_error(docstring, ParameterTypeMissingError):
             return
@@ -211,10 +416,7 @@ class IntegrityChecker(object):
                 )
 
     def _check_return_type(self, docstring, function):
-        # type: (BaseDocstring, FunctionDescription) -> None
-        if function.is_abstract:
-            return
-
+        # type: (FunctionDescription) -> None
         if self._ignore_error(docstring, ReturnTypeMismatchError):
             return
 
@@ -237,10 +439,7 @@ class IntegrityChecker(object):
                 )
 
     def _check_yield(self, docstring, function):
-        # type: (BaseDocstring, FunctionDescription) -> None
-        if function.is_abstract:
-            return
-
+        # type: (FunctionDescription) -> None
         doc_yield = docstring.get_section(Sections.YIELDS_SECTION)
         fun_yield = function.has_yield
         ignore_missing = self._ignore_error(docstring, MissingYieldError)
@@ -261,10 +460,7 @@ class IntegrityChecker(object):
             )
 
     def _check_return(self, docstring, function):
-        # type: (BaseDocstring, FunctionDescription) -> None
-
-        if function.is_abstract:
-            return
+        # type: (FunctionDescription) -> None
 
         # If there is an empty return, we don't want to make any
         # judgement about whether it should be reported, as it is
@@ -292,7 +488,9 @@ class IntegrityChecker(object):
             )
 
     def _check_parameters(self, docstring, function):
-        # type: (BaseDocstring, FunctionDescription) -> None
+        # type: (FunctionDescription) -> None
+        if function.argument_names[0]=='**kwargs':
+            return
         docstring_arguments = set(docstring.get_items(
             Sections.ARGUMENTS_SECTION
         ) or [])
@@ -362,7 +560,7 @@ class IntegrityChecker(object):
             )
 
     def _check_variables(self, docstring, function):
-        # type: (BaseDocstring, FunctionDescription) -> None
+        # type: (FunctionDescription) -> None
         described_variables = set(
             docstring.get_items(Sections.VARIABLES_SECTION) or []
         )  # type: Set[str]
@@ -388,7 +586,7 @@ class IntegrityChecker(object):
             )
 
     def _ignore_error(self, docstring, error):
-        # type: (BaseDocstring, Any) -> bool
+        # type: (Any) -> bool
         """Return true if we should ignore this error.
 
         Args:
@@ -410,7 +608,7 @@ class IntegrityChecker(object):
         return False
 
     def _remove_ignored(self, docstring, missing, error):
-        # type: (BaseDocstring, Set[str], Any) -> Set[str]
+        # type: (Set[str], Any) -> Set[str]
         """Remove ignored from missing.
 
         Args:
@@ -438,20 +636,20 @@ class IntegrityChecker(object):
         return missing - set(noqa_lookup[error_code])
 
     def _check_style(self, docstring, function):
-        # type: (BaseDocstring, FunctionDescription) -> None
+        # type: (FunctionDescription) -> None
         for StyleError, line_numbers in docstring.get_style_errors():
             if self._ignore_error(docstring, StyleError):
                 continue
-            self.errors.append(StyleError(
+            self.errors.append(
+                StyleError(
                 function.function,
                 line_numbers,
             ))
 
     def _check_raises(self, docstring, function):
-        # type: (BaseDocstring, FunctionDescription) -> None
-        if function.is_abstract:
+        # type: (FunctionDescription) -> None
+        if function.raise_judge == False:
             return
-
         exception_types = docstring.get_items(Sections.RAISES_SECTION)
         docstring_raises = set(exception_types or [])
         actual_raises = function.raises
@@ -461,7 +659,7 @@ class IntegrityChecker(object):
         missing_in_doc = self._remove_ignored(
             docstring,
             missing_in_doc,
-            MissingRaiseError,
+            MissingRaiseError, 
         )
 
         for missing in missing_in_doc:
@@ -475,33 +673,33 @@ class IntegrityChecker(object):
         # would know if this function would be likely to raise
         # a certain exception from underlying calls.
         #
-        missing_in_function = docstring_raises - actual_raises
-        missing_in_function = self._remove_ignored(
-            docstring,
-            missing_in_function,
-            ExcessRaiseError,
-        )
+        # missing_in_function = docstring_raises - actual_raises
+        # missing_in_function = self._remove_ignored(
+        #     docstring,
+        #     missing_in_function,
+        #     ExcessRaiseError,
+        # )
 
-        # Remove AssertionError if there is an assert.
-        if 'AssertionError' in missing_in_function:
-            if function.raises_assert:
-                missing_in_function.remove('AssertionError')
+        # # Remove AssertionError if there is an assert.
+        # if 'AssertionError' in missing_in_function:
+        #     if function.raises_assert:
+        #         missing_in_function.remove('AssertionError')
 
-        default_line_numbers = docstring.get_line_numbers(
-            'raises-section',
-        )
-        for missing in missing_in_function:
-            line_numbers = docstring.get_line_numbers_for_value(
-                'raises-section',
-                missing,
-            ) or default_line_numbers
-            self.errors.append(
-                ExcessRaiseError(
-                    function.function,
-                    missing,
-                    line_numbers=line_numbers,
-                )
-            )
+        # default_line_numbers = docstring.get_line_numbers(
+        #     'raises-section',
+        # )
+        # for missing in missing_in_function:
+        #     line_numbers = docstring.get_line_numbers_for_value(
+        #         'raises-section',
+        #         missing,
+        #     ) or default_line_numbers
+        #     self.errors.append(
+        #         ExcessRaiseError(
+        #             function.function,
+        #             missing,
+        #             line_numbers=line_numbers,
+        #         )
+        #     )
 
     def _sort(self):
         # type: () -> None

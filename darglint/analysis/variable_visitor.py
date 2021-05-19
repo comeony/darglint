@@ -9,10 +9,8 @@ from typing import (
 class VariableVisitor(ast.NodeVisitor):
 
     def __init__(self, *args, **kwargs):
-        # type: (Any, Any) -> None
-
-        # TODO: https://github.com/python/mypy/issues/4001
-        super(VariableVisitor, self).__init__(*args, **kwargs)  # type: ignore
+        # type: (List[Any], Dict[str, Any]) -> None
+        super(VariableVisitor, self).__init__(*args, **kwargs)
         self.variables = list()  # type: List[ast.Name]
 
     def visit_Name(self, node):
