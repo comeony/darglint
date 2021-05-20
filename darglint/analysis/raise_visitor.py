@@ -240,11 +240,10 @@ class Context(object):
 class RaiseVisitor(ast.NodeVisitor):
 
     def __init__(self, *args, **kwargs):
-        # type: (Any, Any) -> None
+        # type: (List[Any], Dict[str, Any]) -> None
 
         # Allow the raise visitor to be used in a mixin.
-        # TODO: https://github.com/python/mypy/issues/4001
-        super(RaiseVisitor, self).__init__(*args, **kwargs)  # type: ignore
+        super(RaiseVisitor, self).__init__(*args, **kwargs)
 
         # The context in which an exception can be raised.
         # The default context is the function body,

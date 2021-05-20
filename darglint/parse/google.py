@@ -57,6 +57,7 @@ def _get_split_end_with_indents(tokens, i):
     newline_count = 0
     newline_run = 0
     highest_newline_run = 0
+    ident_num = 0
     j = i
     while j < len(tokens):
         if tokens[j].token_type == TokenType.NEWLINE:
@@ -75,11 +76,15 @@ def _get_split_end_with_indents(tokens, i):
     while (j < len(tokens)
             and j > 1
             and tokens[j - 1].token_type == TokenType.INDENT):
+        ident_num +=1
         j -= 1
 
     # TODO: Do we want to check for keywords before assuming a
     # new section?  If we have line-separated sections in args,
     # which do not have indents, then we will parse incorrectly.
+    # if ident_num>=2:
+    #     return 0
+
     if newline_count < 2:
         return 0
 
@@ -99,15 +104,113 @@ def _get_split_end_with_indents(tokens, i):
     return 0
 
 
-def top_parse(tokens):
+def _get_split_end_with_indents_v2(tokens, i):
+    # type: (List[Token], int) -> int
+    """Return the index of the end of this split, or 0.
+
+    Args:
+        tokens: A list of tokens.
+        i: The current index.
+
+    Returns:
+        If i is the start of a split, return the index of the
+        token after the end of the split (or the last token, if
+        it's the end of the docstring.)  If we're not at a split,
+        return 0.
+
+    """
+    newline_count = 0
+    newline_run = 0
+    highest_newline_run = 0
+    ident_num = 0
+    j = i
+    while j < len(tokens):
+        if tokens[j].token_type == TokenType.NEWLINE:
+            newline_count += 1
+            newline_run += 1
+            if newline_run > highest_newline_run:
+                highest_newline_run = newline_run
+        elif tokens[j].token_type == TokenType.INDENT:
+            newline_run = 0
+        else:
+            break
+        j += 1
+
+    # Back up so that we don't remove indents on the same line as
+    # the encountered text.
+    while (j < len(tokens)
+            and j > 1
+            and tokens[j - 1].token_type == TokenType.INDENT):
+        ident_num +=1
+        j -= 1
+    
+    while (j < len(tokens)
+            and j > 1
+            and tokens[j+ident_num].value == '-'):
+        return 0
+
+
+    # TODO: Do we want to check for keywords before assuming a
+    # new section?  If we have line-separated sections in args,
+    # which do not have indents, then we will parse incorrectly.
+    # if ident_num>=2:
+    #     return 0
+
+    if newline_count < 2:
+        return 0
+
+    # If there are two newlines in a row, we have a break, no
+    # matter what.
+    if highest_newline_run > 1:
+        return j
+
+    # If there were not 2+ newlines in a row, (i.e. there were
+    # indented lines in with these), then it's only a new section
+    # if it starts with a keyword.
+    if (j < len(tokens)
+            and tokens[j].token_type in KEYWORDS
+            and tokens[j - 1].token_type == TokenType.NEWLINE):
+        return j
+
+    return 0
+
+def top_parse(content):
     # type: (List[Token]) -> List[List[Token]]
     all_sections = list()
+    all_content = list()
     curr = 0
-    # Strip leading newlines.
+    curr_v2 = 0
+    # Strip leading newlines
+    tokens = []
+    newline_num = 0
+    ident_count = 0
+    j = 0
+    for i in range(0,len(content)):
+        if content[i].token_type == TokenType.NEWLINE and content[i+2].token_type == TokenType.INDENT: 
+            newline_num += 1
+            ident_count = 0
+            continue
+        elif content[i].token_type == TokenType.NEWLINE and content[i+2].token_type != TokenType.INDENT:
+            newline_num += 1
+            ident_count = 0
+            tokens.append(content[i])
+            continue
+        elif content[i].token_type == TokenType.INDENT: 
+            ident_count += 1
+            newline_num = 0
+        elif content[i].token_type != TokenType.INDENT and content[i].token_type != TokenType.NEWLINE:
+            if ident_count < 2 and newline_num < 2: 
+                tokens.append(content[i])
+                continue
+        if ident_count > 1 or (ident_count == 1 and content[i+1].token_type == TokenType.INDENT):
+            continue
+        tokens.append(content[i])
+        newline_num = 0
+        ident_count = 0
+
     while curr < len(tokens) and tokens[curr].token_type == TokenType.NEWLINE:
         curr += 1
     prev = curr
-
     while curr < len(tokens):
         split_end = _get_split_end_with_indents(tokens, curr)
         if split_end > curr:
@@ -122,7 +225,25 @@ def top_parse(tokens):
     last_section = tokens[prev:curr]
     if last_section:
         all_sections.append(last_section)
-    return all_sections
+
+    while curr_v2 < len(content) and content[curr_v2].token_type == TokenType.NEWLINE:
+        curr_v2 += 1
+    prev = curr_v2
+    while curr_v2 < len(content):
+        split_end = _get_split_end_with_indents_v2(content, curr_v2)
+        if split_end > curr_v2:
+            if content[prev:curr_v2]:
+                all_content.append(
+                    content[prev:curr_v2]
+                )
+            curr_v2 = split_end
+            prev = curr_v2
+        else:
+            curr_v2 += 1
+    last_section = content[prev:curr_v2]
+    if last_section:
+        all_content.append(last_section)
+    return all_content,all_sections
 
 
 def _match(token):
@@ -195,4 +316,5 @@ def parse(tokens):
                 yield lambda x: cyk_parse(grammar, x)
             else:
                 yield grammar
-    return parser_combinator(top_parse, mapped_lookup, combinator, tokens)
+    root_format,root = parser_combinator(top_parse, mapped_lookup, combinator, tokens)
+    return root,root_format

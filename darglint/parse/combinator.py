@@ -44,7 +44,7 @@ def parser_combinator(top, lookup, combinator, tokens):
         The top-level node from the combinator.
 
     """
-    sections = top(tokens)
+    content,sections = top(tokens)
     parsed_sections = list()
     for i, section in enumerate(sections):
         parsed = None
@@ -55,4 +55,5 @@ def parser_combinator(top, lookup, combinator, tokens):
         if not parsed:
             return None
         parsed_sections.append(parsed)
-    return combinator(*parsed_sections)
+    test = combinator(*parsed_sections)
+    return content,combinator(*parsed_sections)

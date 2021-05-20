@@ -213,6 +213,7 @@ def get_error_report(filename,
     try:
         tree = ast.parse(program)
         functions = get_function_descriptions(tree)
+        #classes = get_class_descriptions(tree)
         checker = IntegrityChecker(
             raise_errors=raise_errors_for_syntax,
         )
@@ -240,7 +241,7 @@ def print_error_list():
 
 
 def print_version():
-    print('1.8.0')
+    print('1.8.0-1')
 
 
 def main():
@@ -314,6 +315,13 @@ def main():
 
         raise_errors_for_syntax = args.raise_syntax or False
         for filename in files:
+            judge_private = 0
+            judge_filename = filename.split('\\')
+            for line in judge_filename:
+                if line.startswith('_'):
+                    judge_private += 1
+            if judge_private>0:
+                continue
             error_report = get_error_report(
                 filename,
                 args.verbosity,

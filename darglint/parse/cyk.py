@@ -48,9 +48,7 @@ def parse(grammar, tokens):
             for rhs in production.rhs:
                 if len(rhs) > 2:
                     continue
-
-                # TODO: Cast to a TerminalDerivation?
-                token_type, weight = rhs  # type: ignore
+                token_type, weight = rhs
                 if token.token_type == token_type:
                     P[0][s][v] = CykNode(
                         production.lhs,
@@ -65,9 +63,7 @@ def parse(grammar, tokens):
                         is_terminal_derivation = len(derivation) <= 2
                         if is_terminal_derivation:
                             continue
-
-                        # TODO: Cast the derivation to a NonTerminalDerivation?
-                        annotations, B, C, weight = derivation  # type: ignore
+                        annotations, B, C, weight = derivation
                         b = lookup[B]
                         c = lookup[C]
                         lchild = P[p - 1][s - 1][b]

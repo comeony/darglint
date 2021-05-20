@@ -3,7 +3,6 @@ from typing import (
     Any,
     Dict,
     List,
-    Union,
 )
 from ..config import (
     get_logger,
@@ -17,10 +16,8 @@ class YieldVisitor(ast.NodeVisitor):
     """A visitor which checks for *returns* nodes."""
 
     def __init__(self, *args, **kwargs):
-        # type: (Any, Any) -> None
-
-        # TODO: https://github.com/python/mypy/issues/4001
-        super(YieldVisitor, self).__init__(*args, **kwargs)  # type: ignore
+        # type: (List[Any], Dict[str, Any]) -> None
+        super(YieldVisitor, self).__init__(*args, **kwargs)
 
         # A list of the return nodes encountered.
         self.yields = list()  # type: List[Union[ast.Yield, ast.YieldFrom]]
@@ -31,6 +28,6 @@ class YieldVisitor(ast.NodeVisitor):
         return self.generic_visit(node)
 
     def visit_YieldFrom(self, node):
-        # type: (ast.YieldFrom) -> ast.AST
+        # type: (ast.Yield) -> ast.AST
         self.yields.append(node)
         return self.generic_visit(node)

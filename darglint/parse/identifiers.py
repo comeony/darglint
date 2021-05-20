@@ -192,17 +192,15 @@ class Identifier(abc.ABC):
 
     """
 
-    @staticmethod
     @property
     @abc.abstractmethod
-    def key():
+    def key(self):
         # type: () -> str
         pass
 
-    @staticmethod
     @property
     @abc.abstractmethod
-    def path():
+    def path(self):
         # type: () -> Continuation
         pass
 

@@ -22,9 +22,6 @@ from .analysis.function_and_method_visitor import (
     FunctionAndMethodVisitor,
 )
 from .config import get_logger
-from .analysis.analysis_helpers import (
-    _has_decorator
-)
 
 
 logger = get_logger()
@@ -55,7 +52,7 @@ def read_program(filename):  # type: (str) -> Union[bytes, str]
     return program or ''
 
 
-def _get_docstring(fun):  # type: (ast.AST) -> Optional[str]
+def _get_docstring(fun):  # type: (ast.AST) -> str
     return ast.get_docstring(fun)
 
 
@@ -78,6 +75,29 @@ def _get_all_methods(tree):  # type: (ast.AST) -> Iterator[Union[ast.FunctionDef
     for klass in _get_all_classes(tree):
         for fun in _get_all_functions(klass):
             yield fun
+
+
+def _get_decorator_names(fun):  # type: (Union[ast.FunctionDef, ast.AsyncFunctionDef]) -> List[str]  # noqa: E501
+    """Get decorator names from the function.
+
+    Args:
+        fun: The function whose decorators we are getting.
+
+    Returns:
+        The names of the decorators. Does not include setters and
+        getters.
+
+    """
+    ret = list()
+    for decorator in fun.decorator_list:
+        # Attributes (setters and getters) won't have an id.
+        if hasattr(decorator, 'id'):
+            ret.append(getattr(decorator, 'id'))
+    return ret
+
+
+def _is_staticmethod(fun):  # type: (Union[ast.FunctionDef, ast.AsyncFunctionDef]) -> bool  # noqa: E501
+    return 'staticmethod' in _get_decorator_names(fun)
 
 
 def _get_return_type(fn):
@@ -103,9 +123,9 @@ def get_line_number_from_function(fn):
 
     """
     line_number = fn.lineno
-    if hasattr(fn, 'args') and fn.args.args:
-        last_arg = fn.args.args[-1]
-        line_number = last_arg.lineno
+    # if hasattr(fn, 'args') and fn.args.args:
+    #     last_arg = fn.args.args[-1]
+    #     line_number = last_arg.lineno
     return line_number
 
 
@@ -148,25 +168,21 @@ class FunctionDescription(object):
             return
         self.argument_names = visitor.arguments
         self.argument_types = visitor.types
-        if function_type != FunctionType.FUNCTION and len(self.argument_names) > 0:
-            if not _has_decorator(function, "staticmethod"):
+        if len(self.argument_names) > 0:
+            if (function_type != FunctionType.FUNCTION or self.argument_names[0]=='self') and not _is_staticmethod(function):
                 self.argument_names.pop(0)
                 self.argument_types.pop(0)
+                self.raise_judge = False
+            else:
+                self.raise_judge = True
         self.has_return = bool(visitor.returns)
-        self.has_empty_return = False
-        if self.has_return:
-            return_value = visitor.returns[0]
-            self.has_empty_return = (
-                return_value is not None
-                and return_value.value is None
-            )
+        self.has_empty_return = self.has_return and visitor.returns[0].value is None
         self.return_type = _get_return_type(function)
         self.has_yield = bool(visitor.yields)
         self.raises = visitor.exceptions
         self.docstring = _get_docstring(function)
         self.variables = [x.id for x in visitor.variables]
         self.raises_assert = bool(visitor.asserts)
-        self.is_abstract = visitor.is_abstract
 
 
 def get_function_descriptions(program):
@@ -187,10 +203,10 @@ def get_function_descriptions(program):
 
     visitor = FunctionAndMethodVisitor()
     visitor.visit(program)
-    for prop in visitor.properties:
-        ret.append(
-            FunctionDescription(function_type=FunctionType.PROPERTY, function=prop)
-        )
+    # for prop in visitor.properties:
+    #     ret.append(
+    #         FunctionDescription(function_type=FunctionType.PROPERTY, function=prop)
+    #     )
 
     for method in visitor.methods:
         ret.append(
@@ -203,3 +219,16 @@ def get_function_descriptions(program):
         )
 
     return ret
+
+
+def iter_fields(node):
+    """
+    Yield a tuple of ``(fieldname, value)`` for each field in ``node._fields``
+    that is present on *node*.
+    """
+    for field in node._fields:
+        try:
+            yield field, getattr(node, field)
+        except AttributeError:
+            pass
+    

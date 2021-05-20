@@ -13,7 +13,8 @@ class Docstring(object):
     @staticmethod
     def from_google(root):
         # type: (str) -> BaseDocstring
-        return google.Docstring(root)
+        root = google.Docstring(root)
+        return root
 
     @staticmethod
     def from_sphinx(root, config=None):
