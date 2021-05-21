@@ -9,8 +9,6 @@ from typing import (  # noqa: F401
     Optional,
 )
 
-from numpy.lib.arraysetops import setxor1d
-
 from .function_description import (  # noqa: F401
     FunctionDescription,
 )
