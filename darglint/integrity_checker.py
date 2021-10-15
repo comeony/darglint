@@ -33,6 +33,8 @@ from .errors import (  # noqa: F401
     SummaryError,
     BlankError,
     SpaceError,
+    InputsSpaceError,
+    OutputsSpaceError,
 )
 from .error_report import (
     ErrorReport,
@@ -113,8 +115,12 @@ class IntegrityChecker(object):
             return
         self._check_parameters(docstring, function)
         #self._check_summary(docstring, function)
+        #self._check_MissingInputsBlank(docstring, function)
         self._check_MissingArgsBlank(docstring, function)
+        #self._check_MissingOutputsBlank(docstring, function)
         self._check_indent(docstring, function)
+        self._check_inputsindent(docstring, function)
+        self._check_outputsindent(docstring, function)
         self._check_parameter_types(docstring, function)
         self._check_parameter_types_missing(docstring, function)
         self._check_return(docstring, function)
@@ -139,7 +145,7 @@ class IntegrityChecker(object):
                 )
             )
 
-        
+
     def _check_MissingArgsBlank(self, docstring, function):
         rule = re.compile('^[a-zA-z]{1}.*$')
         sections = function.docstring.split('\n')
@@ -175,7 +181,6 @@ class IntegrityChecker(object):
             return
         
         line_numbers = docstring.get_line_numbers('arguments-section')
-
         parameter_part = []
         parameter_num = 0
         for line in annotitions_part:
@@ -226,7 +231,9 @@ class IntegrityChecker(object):
                         break
                     else:
                         break
-    
+
+
+
     def _check_indent(self, docstring, function):
         rule = re.compile('^[a-zA-z]{1}.*$')
         sections = function.docstring.split('\n')
@@ -319,7 +326,202 @@ class IntegrityChecker(object):
                         )
                 
                     
+    def _check_inputsindent(self, docstring, function):
+        rule = re.compile('^[a-zA-z]{1}.*$')
+        sections = function.docstring.split('\n')
+        annotitions_part = []
+        part = []
+        for i in range(0,len(sections)):
+            if i == 0:
+                part.append(sections[i])
+                continue
+            elif sections[i] == '' and sections[i-1].startswith('        '):
+                part.append(sections[i])
+                continue
+            elif sections[i] == '':
+                part.append(sections[i])
+                continue
+            elif sections[i][0] != ' ':
+                annotitions_part.append(part)
+                part = []
+                part.append(sections[i])
+                continue
+            elif i == len(sections)-1:
+                part.append(sections[i])
+            elif sections[i].startswith('    '):
+                part.append(sections[i])
+                continue
+            else:
+                part.append(sections[i])
+                continue
+            annotitions_part.append(part)
+            
+        error_code = InputsSpaceError.error_code
+        if self._ignore_error(docstring, InputsSpaceError):
+            return
+        
+ 
+        index_count = 1
+        starts_inputs_line = 0
+        parameter_part = []
+        parameter_num = 0
+        for line in annotitions_part:
+            if line[0] != 'Inputs:' and index_count:
+                starts_inputs_line += len(line)
+                continue
+            index_count = 0
+            if line[0] == "Inputs:":
+                end_count = len(line)
+            else:
+                end_count = 1
+            for i in range(0,len(line)):
+                ident_num = 0
+                if rule.match(line[i]):
+                    continue
+                for j in range(0,len(line[i])):
+                    if line[i][j] == ' ':
+                        ident_num += 1
+                        continue
+                    else:
+                        break
+                if ident_num == 4 and parameter_num == 0:
+                    parameter_start = i
+                    parameter_num +=1
+                elif ident_num == 4 and parameter_num > 0:
+                    parameter_num +=1
+                    parameter_part.append(line[parameter_start:i])
+                    parameter_start = i
+                elif i == len(line)-1:
+                    parameter_part.append(line[parameter_start:i])
 
+        for line in parameter_part:
+            ident_standard = 0
+            for i in range(0,len(line)):
+                list_flag = 0
+                if line[i] == '':
+                    continue
+                ident_num = 0
+                for j in range(0,len(line[i])):
+                    if line[i][j] == ' ':
+                        ident_num += 1
+                        continue
+                    elif line[i][j] == '-':
+                        list_flag += 1
+                        ident_num += 1
+                        ident_standard = ident_num + 1
+                        break
+                    elif line[i-1]=='':
+                        ident_standard = 0
+                        break
+                    else:
+                        break
+
+                if ident_standard>0 and ident_num != ident_standard and list_flag !=1:
+                    self.errors.append(
+                            InputsSpaceError(
+                            function.function,
+                            line_numbers=(starts_inputs_line, starts_inputs_line + end_count),
+                            )
+                        )
+
+
+    def _check_outputsindent(self, docstring, function):
+        rule = re.compile('^[a-zA-z]{1}.*$')
+        sections = function.docstring.split('\n')
+        annotitions_part = []
+        part = []
+        for i in range(0,len(sections)):
+            if i == 0:
+                part.append(sections[i])
+                continue
+            elif sections[i] == '' and sections[i-1].startswith('        '):
+                part.append(sections[i])
+                continue
+            elif sections[i] == '':
+                part.append(sections[i])
+                continue
+            elif sections[i][0] != ' ':
+                annotitions_part.append(part)
+                part = []
+                part.append(sections[i])
+                continue
+            elif i == len(sections)-1:
+                part.append(sections[i])
+            elif sections[i].startswith('    '):
+                part.append(sections[i])
+                continue
+            else:
+                part.append(sections[i])
+                continue
+            annotitions_part.append(part)
+            
+        error_code = OutputsSpaceError.error_code
+        if self._ignore_error(docstring, OutputsSpaceError):
+            return
+        
+ 
+        index_count = 1
+        starts_outputs_line = 0
+        parameter_part = []
+        parameter_num = 0
+        for line in annotitions_part:
+            if line[0] != 'Outputs:' and index_count:
+                starts_outputs_line += len(line)
+                continue
+            index_count = 0
+            if line[0] == "Outputs:":
+                end_count = len(line)
+            else:
+                end_count = 1
+            for i in range(0,len(line)):
+                ident_num = 0
+                if rule.match(line[i]):
+                    continue
+                for j in range(0,len(line[i])):
+                    if line[i][j] == ' ':
+                        ident_num += 1
+                        continue
+                    else:
+                        break
+                if ident_num == 4 and parameter_num == 0:
+                    parameter_start = i
+                    parameter_num +=1
+                elif ident_num == 4 and parameter_num > 0:
+                    parameter_num +=1
+                    parameter_part.append(line[parameter_start:i])
+                    parameter_start = i
+                elif i == len(line)-1:
+                    parameter_part.append(line[parameter_start:i])
+
+        for line in parameter_part:
+            ident_standard = 0
+            for i in range(0,len(line)):
+                list_flag = 0
+                if line[i] == '':
+                    continue
+                ident_num = 0
+                for j in range(0,len(line[i])):
+                    if line[i][j] == ' ':
+                        ident_num += 1
+                        continue
+                    elif line[i][j] == '-':
+                        list_flag += 1
+                        ident_num += 1
+                        ident_standard = ident_num + 1
+                        break
+                    elif line[i-1]=='':
+                        ident_standard = 0
+                        break
+                    else:
+                        break
+
+                if ident_standard>0 and ident_num != ident_standard and list_flag !=1:
+                    self.errors.append(
+                            OutputsSpaceError(
+                            function.function,
+                            line_numbers=(starts_outputs_line, starts_outputs_line + end_count),
+                            )
+                        )
 
 
 

@@ -313,13 +313,57 @@ class SpaceError(DarglintError):
 
         """
         self.general_message = 'no indent'
-        self.terse_message = 'The unordered list should be indented by two space'
+        self.terse_message = '<Args> The unordered list should be indented by two space'
         super(SpaceError, self).__init__(
             function,
             line_numbers=line_numbers,
         )
 
+class InputsSpaceError(DarglintError):
+    """Describes when a docstring contains a parameter not in function."""
 
+    error_code = 'DAR601'
+    description = 'The docstring Inputs content has no indent.'
+
+    def __init__(self, function, line_numbers=None):
+        # type: (Union[ast.FunctionDef, ast.AsyncFunctionDef], str, Tuple[int, int]) -> None
+        """Instantiate the error's message.
+
+        Args:
+            function: An ast node for the function.
+            name: The name of the argument that is excess.
+            line_numbers: The line numbers where this error occurs.
+
+        """
+        self.general_message = 'no indent'
+        self.terse_message = '<Inputs> The unordered list should be indented by two space'
+        super(InputsSpaceError, self).__init__(
+            function,
+            line_numbers=line_numbers,
+        )
+
+class OutputsSpaceError(DarglintError):
+    """Describes when a docstring contains a parameter not in function."""
+
+    error_code = 'DAR601'
+    description = 'The docstring Outputs content has no indent.'
+
+    def __init__(self, function, line_numbers=None):
+        # type: (Union[ast.FunctionDef, ast.AsyncFunctionDef], str, Tuple[int, int]) -> None
+        """Instantiate the error's message.
+
+        Args:
+            function: An ast node for the function.
+            name: The name of the argument that is excess.
+            line_numbers: The line numbers where this error occurs.
+
+        """
+        self.general_message = 'no indent'
+        self.terse_message = '<Outputs> The unordered list should be indented by two space'
+        super(OutputsSpaceError, self).__init__(
+            function,
+            line_numbers=line_numbers,
+        )
 
 class MissingParameterError(DarglintError):
     """Describes when a docstring is missing a parameter in the definition."""
